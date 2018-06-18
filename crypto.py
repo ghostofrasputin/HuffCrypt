@@ -6,13 +6,12 @@
 class Crypto:
 
     # converts byte-string to array of byte blocks
-    # bytes are xor-ed with key and returned
-    # as array of characters
+    # bytes are xor-ed with key
     def encrypt(self, str, key):
         #print(str)
         blocks = self.str_to_byte_blocks(str)
         #print(blocks)
-        chars = [chr(byte ^ int(key,2)) for byte in blocks]
+        chars = "".join(chr(byte ^ int(key,2)) for byte in blocks)
         #print(chars)
         return chars
 
