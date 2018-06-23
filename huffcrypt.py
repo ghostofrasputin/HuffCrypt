@@ -9,24 +9,60 @@
 
 import os
 import sys
-import crypto
 import huffman
 
 def error():
     print("Usage: python huffcrypt.py [-e/d] [key] [file]")
     sys.exit(1)
 
+# start here
 def configure_key(key):
-    a = [format(ord(x), 'b') for x in key]
-    str = ""
-    for i in range(len(a)-1):
-        str = bin(int(a[i],2) + int(a[i+1], 2))  
-    return str[2:]
+    key = ['{0:08b}'.format(ord(x), 'b') for x in key]
+    s = '{0:08b}'.format(sum(int(x, 2) for x in key))[0:8]
+    # debug
+    #print(s)  
+    return int(s,2)
 
-def write_to_file(file, data):
-    f = open(file,"wb+")
-    f.write(data.encode("utf-8"))
+def encrypt(key, file, head, data):
+    f = open(file,"wb")
+    byte_array = bytearray()
+    # add partition after header
+    head += "  "
+    #print(head)
+    # convert header into bit string
+    head = ''.join('{0:08b}'.format(ord(c), 'b') for c in head)
+    # encrypt header huffman data first
+    for i in range(0, len(head), 8):
+        byte_array.append(int(head[i:i + 8], 2) ^ key)
+    # encrypt file data
+    for i in range(0, len(data), 8):
+        byte_array.append(int(data[i:i + 8], 2) ^ key)
+    #print(byte_array[0])  
+    f.write(byte_array)
     f.close()
+
+def decrypt(key, data):
+    str = ""
+    flag = False
+    start = 0
+    # decrypt head into characters
+    for i in range(0,len(data)):
+        str += chr(data[i] ^ key)
+        if i > 0:
+            if chr(data[i-1] ^ key) == " " and chr(data[i] ^ key) == " ":
+                flag = True
+                start = i+1
+                break
+    # decrypt data into bit strings
+    for i in range(start, len(data)):
+        bit_string = '{0:08b}'.format(data[i] ^ key,'b')
+        str += bit_string                   
+    return str  
+        
+def write_to_file(file, data):
+    f = open(file,"w+")
+    f.write(data)
+    f.close()    
 
 if __name__ == "__main__":
     argv = sys.argv
@@ -39,28 +75,29 @@ if __name__ == "__main__":
         flag = argv[1]
         key = configure_key(argv[2])
         if os.path.exists(argv[3]):
-            with open(argv[3], 'r') as file:
+            mode = "r" if flag == "-e" else "rb"
+            with open(argv[3], mode) as file:
                 try:
                     data = file.read()
                 except:
-                    print("error: failure reading: "+argv[3])
+                    print("Error: failure reading: "+argv[3])
+                    sys.exit(1)
         else:
-            print("error: path to file does not exist.")
+            print("Error: path to file does not exist.")
             sys.exit(1)
         dir_path = os.path.dirname(os.path.realpath(argv[3]))
         h = huffman.Huffman()
-        c = crypto.Crypto()
         if(flag == "-e"):
-            print("compressing...")
-            compressed_data = h.compress(data)
-            #print(compressed_data)
-            print("encrypting...")
-            encrypted_data = c.encrypt(compressed_data, key)
-            #print(encrypted_data)
-            write_to_file(dir_path+"\e_file",encrypted_data)
+            print("Compressing...")
+            header, compressed_data = h.compress(data)
+            print("Encrypting...")
+            encrypt(key, dir_path+"\e_file", header, compressed_data)
+            print("Done.")
         else:
-            print("decrypting...")
-            decrypted_data = c.decrypt(data, key)
-            #print(decrypted_data)
-            print("decompressing...")
-            decompressed_data = h.decompress(decrypted_data)
+            print("Decrypting...")
+            decrypted_data = decrypt(key, list(data))
+            print("Decompressing...")
+            write_to_file(dir_path+"\d_file", h.decompress(decrypted_data))
+            print("Done.")
+
+
